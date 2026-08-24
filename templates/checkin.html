@@ -1,0 +1,25 @@
+<div class="page">
+  <header class="doc-header">
+    {% if logo_data_uri %}
+    <div class="logo-badge"><img class="logo" src="{{ logo_data_uri }}" alt="logo"></div>
+    {% else %}
+    <div class="logo-placeholder">LOGO</div>
+    {% endif %}
+  </header>
+
+  <h1 class="client-name">Check-in Semanal</h1>
+  {% if checkin.client_name %}<p class="phase">{{ checkin.client_name }}</p>{% endif %}
+
+  <section class="qa-list">
+    {% for pair in checkin.pairs %}
+    <div class="qa-item">
+      {% if pair.question %}<div class="question">{{ pair.question }}</div>{% endif %}
+      <div class="answer">{{ pair.answer }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <footer class="doc-footer">
+    {{ brand_name or "Nome da Personal Trainer" }}
+  </footer>
+</div>

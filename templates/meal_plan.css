@@ -1,0 +1,199 @@
+/* Paleta unificada com o template de treino (identidade Clara Isabella
+   Personal Trainer): barra escura no topo, faixas pretas para títulos de
+   seção, acento laranja para rótulos. Logo/marca d'água ainda são
+   placeholders — trocar quando tivermos o arquivo de logo real. */
+
+@page {
+  size: A4;
+  margin: 20mm 16mm 22mm 16mm;
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 8pt;
+    color: #999;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: #1c1c1c;
+  font-size: 10.5pt;
+  line-height: 1.4;
+}
+
+.page {
+  width: 100%;
+}
+
+/* Cabeçalho */
+.doc-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.logo-placeholder {
+  color: #1a1a1a;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-weight: bold;
+  font-size: 9pt;
+  letter-spacing: 1px;
+}
+
+.logo-badge .logo {
+  height: 100px;
+  width: auto;
+  display: block;
+}
+
+.client-name {
+  font-size: 18pt;
+  text-decoration: underline;
+  margin: 0 0 4px;
+}
+
+.phase {
+  margin: 0 0 10px;
+  font-size: 11pt;
+  color: #b5651d;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.section-banner {
+  background: #1a1a1a;
+  color: #fff;
+  font-weight: bold;
+  padding: 6px 14px;
+  border-radius: 3px;
+  margin: 14px 0 10px;
+  font-size: 10.5pt;
+  letter-spacing: 0.5px;
+}
+
+.plan-fields p {
+  margin: 4px 0;
+}
+
+.category-description {
+  font-size: 9pt;
+  color: #555;
+  font-style: italic;
+  margin: -4px 0 10px;
+}
+
+/* Aviso de itens não reconhecidos */
+.warning-box {
+  background: #fff8e1;
+  border: 1px solid #f0c14b;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 8.5pt;
+  color: #7a5c00;
+  margin-bottom: 14px;
+}
+
+.warning-box ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+/* Categorias (HIGH CARB / MODERATE-LOW CARB / ...) */
+.category {
+  margin-bottom: 18px;
+  page-break-inside: avoid;
+}
+
+/* Cards de refeição */
+.meal-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+  overflow: hidden;
+}
+
+.meal-card-header {
+  background: #f2f2f2;
+  padding: 6px 12px;
+  font-weight: bold;
+  font-size: 9.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #333;
+}
+
+.meal-card-body {
+  padding: 10px 14px;
+}
+
+.meal-variant + .meal-variant {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+}
+
+.variant-label {
+  font-weight: bold;
+  font-size: 9pt;
+  color: #b5651d;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.fixed-items {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
+.choice-group {
+  margin-top: 6px;
+}
+
+.choice-group-label {
+  font-weight: 600;
+  font-size: 9.5pt;
+  color: #b5651d;
+  margin-bottom: 2px;
+}
+
+.choice-options {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.choice-options li,
+.fixed-items li {
+  margin-bottom: 2px;
+}
+
+/* Seções finais em texto livre (CARDIO, PASSOS, ORIENTAÇÕES...) */
+.free-sections {
+  margin-top: 10px;
+}
+
+.free-section {
+  margin-bottom: 12px;
+  page-break-inside: avoid;
+}
+
+.free-section ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+/* Rodapé */
+.doc-footer {
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 8pt;
+  color: #888;
+  text-align: center;
+}

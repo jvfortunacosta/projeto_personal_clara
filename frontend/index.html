@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formatador de Planos — Clara Isabella</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="masthead">
+      <div class="masthead-brand">
+        <img class="masthead-logo" src="/assets/logo.png" alt="Clara Isabella Personal Trainer" />
+        <div class="masthead-text">
+          <h1>Formatador de Planos</h1>
+          <p class="masthead-kicker">Clara Isabella &middot; Personal Trainer</p>
+        </div>
+      </div>
+      <div class="brand-field">
+        <label for="brand-name">Assinatura no rodapé do PDF</label>
+        <input type="text" id="brand-name" placeholder="Clara Isabella Personal Trainer" />
+      </div>
+    </header>
+
+    <nav class="tab-track" id="tab-track">
+      <div class="tab-indicator" aria-hidden="true"></div>
+      <button class="tab-btn active" data-tab="meal-plan" role="tab" aria-selected="true">
+        Plano Alimentar / Treino
+      </button>
+      <button class="tab-btn" data-tab="checkin" role="tab" aria-selected="false">
+        Check-in Semanal
+      </button>
+    </nav>
+
+    <!-- Aba: Plano Alimentar / Treino -->
+    <section id="tab-meal-plan" class="tab-panel active">
+      <div class="workspace">
+        <div class="board-col">
+          <div class="board">
+            <p class="board-eyebrow">Cole o texto bruto do WhatsApp</p>
+            <textarea
+              id="meal-plan-text"
+              class="board-text"
+              placeholder="Cole aqui o plano alimentar ou o treino, exatamente como veio do WhatsApp..."
+            ></textarea>
+
+            <div class="board-controls">
+              <span class="control-label">Tipo de documento</span>
+              <div class="segmented" id="meal-plan-doc-type" data-value="auto" role="radiogroup" aria-label="Tipo de documento">
+                <button type="button" class="segmented-btn active" data-value="auto" role="radio" aria-checked="true">
+                  Detectar
+                </button>
+                <button type="button" class="segmented-btn" data-value="meal_plan" role="radio" aria-checked="false">
+                  Alimentar
+                </button>
+                <button type="button" class="segmented-btn" data-value="workout" role="radio" aria-checked="false">
+                  Treino
+                </button>
+              </div>
+            </div>
+
+            <div class="board-actions">
+              <div id="meal-plan-status" class="status" data-state="idle">
+                <span class="status-dot"></span>
+                <span class="status-text">Pronto</span>
+              </div>
+              <div class="actions">
+                <button id="meal-plan-preview-btn" class="btn btn-ghost">Pré-visualizar</button>
+                <button id="meal-plan-pdf-btn" class="btn btn-primary">Baixar PDF</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="paper-col">
+          <p class="paper-eyebrow">Pré-visualização</p>
+          <div class="paper">
+            <iframe id="meal-plan-frame" class="paper-frame" title="Pré-visualização do plano"></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Aba: Check-in -->
+    <section id="tab-checkin" class="tab-panel">
+      <div class="workspace">
+        <div class="board-col">
+          <div class="board">
+            <p class="board-eyebrow">Cole o check-in do cliente</p>
+            <textarea
+              id="checkin-text"
+              class="board-text"
+              placeholder="Cole aqui as perguntas e respostas do check-in semanal..."
+            ></textarea>
+
+            <div class="board-actions">
+              <div id="checkin-status" class="status" data-state="idle">
+                <span class="status-dot"></span>
+                <span class="status-text">Pronto</span>
+              </div>
+              <div class="actions">
+                <button id="checkin-preview-btn" class="btn btn-ghost">Pré-visualizar</button>
+                <button id="checkin-pdf-btn" class="btn btn-primary">Baixar PDF</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="paper-col">
+          <p class="paper-eyebrow">Pré-visualização</p>
+          <div class="paper">
+            <iframe id="checkin-frame" class="paper-frame" title="Pré-visualização do check-in"></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<div class="page">
+  <header class="doc-header">
+    {% if logo_data_uri %}
+    <div class="logo-badge"><img class="logo" src="{{ logo_data_uri }}" alt="logo"></div>
+    {% else %}
+    <div class="logo-placeholder">LOGO</div>
+    {% endif %}
+  </header>
+
+  <h1 class="client-name">{{ plan.client_name or plan.raw_title }}</h1>
+  {% if plan.phase %}<p class="phase">{{ plan.phase }}</p>{% endif %}
+
+  {% if plan.subtitle %}
+  <div class="section-banner">{{ plan.subtitle }}</div>
+  {% endif %}
+
+  {% if plan.intro_fields or plan.intro_lines %}
+  <div class="plan-fields">
+    {% for f in plan.intro_fields %}
+    <p><strong>{{ f.label }}:</strong> {{ f.value }}</p>
+    {% endfor %}
+    {% for line in plan.intro_lines %}
+    <p>{{ line }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if plan.unparsed_warnings %}
+  <div class="warning-box">
+    <strong>Atenção:</strong> alguns trechos do texto original não foram
+    reconhecidos automaticamente e podem precisar de revisão manual.
+    <ul>
+      {% for w in plan.unparsed_warnings %}
+      <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% for category in plan.categories %}
+  <section class="category">
+    <div class="section-banner">{{ category.name }}</div>
+    {% if category.description %}<p class="category-description">{{ category.description }}</p>{% endif %}
+
+    {% for meal in category.meals %}
+    <div class="meal-card">
+      <div class="meal-card-header">
+        REFEIÇÃO {{ meal.number }}{% if meal.name %} — {{ meal.name }}{% endif %}
+      </div>
+      <div class="meal-card-body">
+        {% for variant in meal.variants %}
+        <div class="meal-variant">
+          {% if variant.label %}<div class="variant-label">{{ variant.label }}</div>{% endif %}
+
+          {% for block in variant.blocks %}
+            {% if block is string %}
+              {% if not (loop.previtem is string) %}<ul class="fixed-items">{% endif %}
+              <li>{{ block }}</li>
+              {% if not (loop.nextitem is string) %}</ul>{% endif %}
+            {% else %}
+            <div class="choice-group">
+              <div class="choice-group-label">
+                {{ block.label }}{% if block.choose_count %} — escolher {{ block.choose_count }}{% endif %}
+              </div>
+              <ul class="choice-options">
+                {% for option in block.options %}
+                <li>{{ option }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+
+  {% if plan.free_sections %}
+  <section class="free-sections">
+    {% for fs in plan.free_sections %}
+    <div class="free-section">
+      <div class="section-banner">{{ fs.name }}</div>
+      <ul>
+        {% for line in fs.lines %}
+        <li>{{ line }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <footer class="doc-footer">
+    {{ brand_name or "Nome da Personal Trainer" }}
+  </footer>
+</div>

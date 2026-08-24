@@ -1,0 +1,84 @@
+/* Paleta unificada com os templates de plano alimentar e treino
+   (identidade Clara Isabella Personal Trainer). */
+
+@page {
+  size: A4;
+  margin: 20mm 16mm 22mm 16mm;
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 8pt;
+    color: #999;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: #1c1c1c;
+  font-size: 11pt;
+  line-height: 1.4;
+}
+
+.doc-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.logo-placeholder {
+  color: #1a1a1a;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-weight: bold;
+  font-size: 9pt;
+  letter-spacing: 1px;
+}
+
+.logo-badge .logo {
+  height: 100px;
+  width: auto;
+  display: block;
+}
+
+.client-name {
+  font-size: 18pt;
+  text-decoration: underline;
+  margin: 0 0 4px;
+}
+
+.phase {
+  margin: 0 0 16px;
+  font-size: 11pt;
+  color: #b5651d;
+  font-weight: 600;
+}
+
+.qa-item {
+  margin-bottom: 12px;
+  page-break-inside: avoid;
+}
+
+.question {
+  font-weight: bold;
+  font-size: 10.5pt;
+  color: #1c1c1c;
+  margin-bottom: 2px;
+}
+
+.answer {
+  color: #333;
+  padding-left: 2px;
+}
+
+.doc-footer {
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 8pt;
+  color: #888;
+  text-align: center;
+}
