@@ -39,7 +39,7 @@
 
   {% for category in plan.categories %}
   <section class="category">
-    <div class="section-banner">{{ category.name }}</div>
+    {% if category.name %}<div class="section-banner">{{ category.name }}</div>{% endif %}
     {% if category.description %}<p class="category-description">{{ category.description }}</p>{% endif %}
 
     {% for meal in category.meals %}

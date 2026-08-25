@@ -55,6 +55,27 @@ GENERIC_LABEL_RE = re.compile(r"^(.+):\s*$")
 # "Label: valor" no preâmbulo do plano (ex.: "Objetivo: reduzir gordura...").
 LABEL_VALUE_RE = re.compile(r"^([A-Za-zÀ-ú][\w À-ú]{1,30}):\s*(.+)$")
 
+# Palavras genéricas de "título de documento" (não nome de pessoa), usadas
+# para decidir qual dos dois lados de "X — Y" na primeira linha é o nome do
+# cliente. A ordem varia entre personals: já vimos tanto "MIGUEL — NOVA FASE
+# DE DEFINIÇÃO" (nome primeiro) quanto "PLANO ALIMENTAR — LÍVIA CAETANO"
+# (tipo de documento primeiro).
+GENERIC_TITLE_WORDS = {
+    "PLANO", "ALIMENTAR", "TREINO", "DIETA", "CARDÁPIO", "CARDAPIO",
+    "NUTRICIONAL", "NUTRICAO", "NUTRIÇÃO", "FASE", "DEFINIÇÃO", "DEFINICAO",
+    "CUTTING", "BULKING", "MANUTENÇÃO", "MANUTENCAO", "HIPERTROFIA",
+    "EMAGRECIMENTO", "CYCLING", "CARB", "NOVA", "NOVO", "SEMANA",
+    "PROGRAMA", "PROTOCOLO", "META", "INICIAL", "SEMANAL", "MENSAL",
+}
+
+
+def _looks_like_generic_title(segment: str) -> bool:
+    words = re.findall(r"[A-ZÀ-Ú]+", segment.upper())
+    if not words:
+        return False
+    hits = sum(1 for w in words if w in GENERIC_TITLE_WORDS)
+    return hits > 0 and hits >= len(words) / 2
+
 # Nomes de seções finais conhecidas (texto livre, sem refeições numeradas).
 KNOWN_FREE_SECTIONS = {
     "CARDIO",
@@ -191,8 +212,16 @@ def _parse_preamble(
     client_name, phase = raw_title, ""
     for sep in (" — ", " – ", " - "):
         if sep in raw_title:
-            client_name, phase = raw_title.split(sep, 1)
-            client_name, phase = client_name.strip(), phase.strip()
+            part_a, part_b = raw_title.split(sep, 1)
+            part_a, part_b = part_a.strip(), part_b.strip()
+            # O nome do cliente pode vir antes ou depois do separador,
+            # dependendo de como a personal escreve o título. O lado que
+            # "parece" um título genérico de documento (ex.: "PLANO
+            # ALIMENTAR") não é o nome — o outro lado é.
+            if _looks_like_generic_title(part_a) and not _looks_like_generic_title(part_b):
+                client_name, phase = part_b, part_a
+            else:
+                client_name, phase = part_a, part_b
             break
 
     subtitle = ""
@@ -419,10 +448,13 @@ def parse_meal_plan(raw_text: str) -> MealPlan:
         header_idx = next(i for i, l in enumerate(block) if l.strip())
         rest_raw = block[header_idx + 1 :]
 
-        # (c) Bloco solto de refeição -> entra na categoria atual.
+        # (c) Bloco solto de refeição -> entra na categoria atual. Quando não
+        # há categoria nenhuma (plano sem divisão em categorias, o caso mais
+        # comum fora de carb cycling), usamos um nome vazio: o template não
+        # desenha a faixa preta de categoria nesse caso.
         if MEAL_HEADER_RE.match(first):
             if current_category is None:
-                current_category = Category(name="SEM CATEGORIA")
+                current_category = Category(name="")
                 plan.categories.append(current_category)
             current_category.meals.append(_build_single_meal(first, rest_raw))
             continue
@@ -451,14 +483,13 @@ def parse_meal_plan(raw_text: str) -> MealPlan:
                 plan.categories.append(current_category)
                 continue
 
-            # Cabeçalho em caixa alta com conteúdo que não reconhecemos
-            # (nem refeição, nem seção final conhecida): tratamos como
-            # seção de texto livre e sinalizamos para revisão.
+            # Cabeçalho em caixa alta sem refeições numeradas dentro: é uma
+            # seção de texto livre legítima (a personal usa nomes de seção
+            # variados — CARDIO, PIPOCA, HIDRATAÇÃO, SUPLEMENTAÇÃO, etc. —
+            # não dá pra prever todos, então qualquer cabeçalho em caixa
+            # alta sem refeições numeradas vira texto livre silenciosamente,
+            # sem gerar aviso).
             plan.free_sections.append(_parse_free_section(first, rest))
-            plan.unparsed_warnings.append(
-                f"Seção \"{first}\" tratada como texto livre por não conter "
-                f"refeições numeradas reconhecidas — confira se está correto."
-            )
             continue
 
         # Bloco sem cabeçalho reconhecível: não descartamos, sinalizamos.
