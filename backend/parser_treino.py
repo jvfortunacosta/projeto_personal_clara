@@ -213,6 +213,14 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             if not plan.client_name:
                 plan.client_name = clean
                 continue
+            # Planos sem título/campos entre o nome do cliente e os dias
+            # (vai direto de "Nome do cliente" para "Segunda-feira - ...").
+            day_match = match_day_header(clean)
+            if day_match:
+                current_day = make_day(day_match)
+                plan.days.append(current_day)
+                phase = "days"
+                continue
             # Primeira linha sem "label:" depois do nome do cliente: título
             # do plano (ex.: "PLANO DE TREINO"), possivelmente com traços.
             plan.plan_title = _strip_trailing_decoration(clean)
