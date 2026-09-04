@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -33,6 +35,17 @@ class TextPayload(BaseModel):
     # "auto" (padrão) deixa a ferramenta decidir; "meal_plan" ou "workout"
     # força o tipo, para quando a detecção automática errar.
     doc_type: Optional[str] = None
+
+
+def _pdf_filename(prefix: str, client_name: str) -> str:
+    """Monta o nome do arquivo baixado. O header Content-Disposition só
+    aceita latin-1, então nomes com travessões, emojis etc. (comuns em
+    texto colado de outros apps) quebravam a resposta com um 500 — aqui
+    normalizamos para um slug ASCII seguro."""
+    base = (client_name or "cliente").strip().lower()
+    ascii_base = unicodedata.normalize("NFKD", base).encode("ascii", "ignore").decode("ascii")
+    ascii_base = re.sub(r"[^a-z0-9]+", "-", ascii_base).strip("-")
+    return f"{prefix}-{ascii_base or 'cliente'}.pdf"
 
 
 def _resolve_doc_type(payload: TextPayload) -> str:
@@ -85,7 +98,7 @@ def api_plan_pdf(payload: TextPayload) -> Response:
         client_name = plan.client_name
         prefix = "plano"
 
-    filename = f"{prefix}-{(client_name or 'cliente').strip().replace(' ', '-').lower()}.pdf"
+    filename = _pdf_filename(prefix, client_name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -113,7 +126,7 @@ def api_checkin_preview(payload: TextPayload) -> HTMLResponse:
 def api_checkin_pdf(payload: TextPayload) -> Response:
     checkin = parse_checkin(payload.text)
     pdf_bytes = render_checkin_pdf(checkin, payload.brand_name or "")
-    filename = f"checkin-{(checkin.client_name or 'cliente').strip().replace(' ', '-').lower()}.pdf"
+    filename = _pdf_filename("checkin", checkin.client_name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

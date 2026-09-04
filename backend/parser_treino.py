@@ -49,15 +49,31 @@ from dataclasses import dataclass, field
 from parser_meal_plan import SEPARATOR_RE, strip_bold
 
 LABEL_VALUE_RE = re.compile(r"^[➢\-•]?\s*([A-Za-zÀ-ú][\w À-ú]{1,30}):\s*(.*)$")
-DAY_HEADER_RE = re.compile(
-    r"^(SEGUNDA|TER[ÇC]A|QUARTA|QUINTA|SEXTA|S[ÁA]BADO|DOMINGO)"
-    r"([\s-]*FEIRA)?\s*[-–—]?\s*(.*)$"
+BULLET_PREFIX_RE = re.compile(r"^[-•*]\s+")
+_DAY_NAMES = (
+    r"SEGUNDA|TER[ÇC]A|QUARTA|QUINTA|SEXTA|S[ÁA]BADO|DOMINGO|"
+    r"MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY"
+)
+DAY_HEADER_RE = re.compile(rf"^({_DAY_NAMES})" r"([\s-]*FEIRA)?\s*[-–—]?\s*(.*)$")
+# Variante tolerante a "Title Case" (ex.: "Wednesday — Back + Glutes"), usada
+# quando a linha não está em CAIXA ALTA: exige o travessão logo após o nome
+# do dia para reduzir falsos positivos em texto corrido.
+DAY_HEADER_TITLECASE_RE = re.compile(
+    rf"^({_DAY_NAMES})" r"([\s-]*FEIRA)?\s*[-–—]\s*(.+)$", re.IGNORECASE
 )
 EXERCISE_SERIES_RE = re.compile(r"^(.+?)\s*[-–—]\s*(\d+)\s*s[ée]ries?\s*$", re.IGNORECASE)
 EXERCISE_COMPACT_RE = re.compile(
-    r"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*(\d+)\s*(.*)$", re.IGNORECASE
+    r"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*(\d+(?:\s*[-–—]\s*\d+)?)\s*(.*)$", re.IGNORECASE
 )
 REPS_BULLET_LINE_RE = re.compile(r"^\d+(\s*[•·]\s*\d+)+$")
+
+
+def match_day_header(line: str) -> re.Match | None:
+    if is_all_caps_header(line):
+        match = DAY_HEADER_RE.match(line.upper())
+        if match:
+            return match
+    return DAY_HEADER_TITLECASE_RE.match(line)
 
 KNOWN_DAY_SUBLABELS = {"AQUECIMENTO", "ABDÔMEN", "ABDOMEN", "CARDIO"}
 KNOWN_FINAL_SECTIONS = {
@@ -163,7 +179,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             close_pending_exercise()
             continue
 
-        clean = strip_bold(line)
+        clean = BULLET_PREFIX_RE.sub("", strip_bold(line))
 
         # Detecção de seção final, válida assim que estivermos dentro dos
         # dias de treino (também cobre a troca entre "CARDIO SEMANAL" e
@@ -204,7 +220,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             continue
 
         if phase == "plan_info":
-            day_match = DAY_HEADER_RE.match(clean.upper()) if is_all_caps_header(clean) else None
+            day_match = match_day_header(clean)
             if day_match:
                 current_day = make_day(day_match)
                 plan.days.append(current_day)
@@ -222,7 +238,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             continue
 
         # phase == "days"
-        day_match = DAY_HEADER_RE.match(clean.upper()) if is_all_caps_header(clean) else None
+        day_match = match_day_header(clean)
         if day_match:
             close_pending_exercise()
             current_day = make_day(day_match)
