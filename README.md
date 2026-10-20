@@ -80,6 +80,14 @@ tinha inconsistências de formatação (ex.: "Aquecimento" às vezes na mesma
 linha do equipamento, às vezes em linha separada) — o parser tolera ambos os
 casos, mas outras variações ainda não vistas podem exigir ajuste.
 
+Também reconhece um segundo formato real (plano "BEATRIZ MOREIRA"), com
+blocos separados por "⸻": bloco extra no cabeçalho em caixa alta (ex.:
+"FOCO DO TREINAMENTO" + lista), sub-seções compostas ("AQUECIMENTO /
+ATIVAÇÃO", "TREINO"), repetições por série com barra (`4x12/12/10/10`),
+"OBSERVAÇÕES" dentro de cada dia, e blocos informativos finais (ex.:
+"CARDIO" com subtítulos "SEGUNDA A SEXTA"/"SÁBADO", "DESCANSO ENTRE AS
+SÉRIES").
+
 Em ambos os parsers, textos que não se encaixarem nos padrões esperados
 aparecem sinalizados no próprio PDF (caixa de aviso amarela) em vez de
 serem descartados silenciosamente.

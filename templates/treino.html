@@ -1,3 +1,16 @@
+{% macro free_groups(section) %}
+  {% for group in section.groups %}
+  {% if group.subtitle %}<div class="item-label">{{ group.subtitle }}</div>{% endif %}
+  {% if group.lines %}
+  <ul>
+    {% for line in group.lines %}
+    <li>{{ line }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% endfor %}
+{% endmacro %}
+
 <div class="page">
   <header class="doc-header">
     {% if logo_data_uri %}
@@ -26,6 +39,12 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% for section in plan.plan_sections %}
+  <div class="plan-section">
+    <p class="plan-section-title">{{ section.title }}</p>
+    {{ free_groups(section) }}
+  </div>
+  {% endfor %}
 
   {% if plan.unparsed_warnings %}
   <div class="warning-box">
@@ -62,6 +81,8 @@
           <div class="exercise-note">{{ item.note }}</div>
           {% endif %}
         </div>
+        {% elif item.kind == "bullet" %}
+        <div class="item-bullet">{{ item.text }}</div>
         {% else %}
         <div class="item-text">{{ item.text }}</div>
         {% endif %}
@@ -91,6 +112,13 @@
     </ul>
   </section>
   {% endif %}
+
+  {% for section in plan.extra_sections %}
+  <section class="free-section">
+    <div class="section-banner">{{ section.title }}</div>
+    {{ free_groups(section) }}
+  </section>
+  {% endfor %}
 
   <footer class="doc-footer">
     {{ brand_name or "Nome da Personal Trainer" }}

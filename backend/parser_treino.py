@@ -39,6 +39,30 @@ mesma linha que o equipamento ("Aquecimento - Mini Band"), às vezes em
 linhas separadas; traço "-" vs "–" usados sem padrão claro), então os
 detectores abaixo são propositalmente tolerantes. Ajustar aqui conforme
 mais exemplos reais chegarem.
+
+Segundo formato real ("BEATRIZ MOREIRA"), com blocos separados por "⸻":
+
+  NOME DO CLIENTE
+  PLANO DE TREINAMENTO – FASE 1
+  Altura: ... / Peso: ... / Nível: ... / Objetivo: ... / Frequência: ...
+  FOCO DO TREINAMENTO            <- bloco extra do cabeçalho + lista "* ..."
+  ⸻
+  SEGUNDA – QUADRÍCEPS + GLÚTEOS
+  AQUECIMENTO / ATIVAÇÃO         <- sub-seções compostas ("/" ou "+")
+  * Nome – 2x15
+  TREINO
+  1. Nome – 4x12/12/10/10        <- repetições por série separadas por "/"
+  ABDÔMEN
+  OBSERVAÇÕES                    <- observações de CADA dia (não do plano)
+  * ...
+  ⸻ ... (repete por dia)
+  ⸻
+  CARDIO                         <- blocos informativos finais: título em
+  SEGUNDA A SEXTA                   caixa alta logo após "⸻", sem exercícios,
+  * ...                             com subtítulos em caixa alta
+  ⸻
+  DESCANSO ENTRE AS SÉRIES
+  * ...
 """
 
 from __future__ import annotations
@@ -62,8 +86,11 @@ DAY_HEADER_TITLECASE_RE = re.compile(
     rf"^({_DAY_NAMES})" r"([\s-]*FEIRA)?\s*[-–—]\s*(.+)$", re.IGNORECASE
 )
 EXERCISE_SERIES_RE = re.compile(r"^(.+?)\s*[-–—]\s*(\d+)\s*s[ée]ries?\s*$", re.IGNORECASE)
+# Repetições: número, faixa ("10-12") e/ou sequência por série ("12/12/10/10").
 EXERCISE_COMPACT_RE = re.compile(
-    r"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*(\d+(?:\s*[-–—]\s*\d+)?)\s*(.*)$", re.IGNORECASE
+    r"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*"
+    r"(\d+(?:\s*[-–—]\s*\d+)?(?:\s*/\s*\d+(?:\s*[-–—]\s*\d+)?)*)\s*(.*)$",
+    re.IGNORECASE,
 )
 REPS_BULLET_LINE_RE = re.compile(r"^\d+(\s*[•·]\s*\d+)+$")
 
@@ -75,14 +102,21 @@ def match_day_header(line: str) -> re.Match | None:
             return match
     return DAY_HEADER_TITLECASE_RE.match(line)
 
-KNOWN_DAY_SUBLABELS = {"AQUECIMENTO", "ABDÔMEN", "ABDOMEN", "CARDIO"}
+KNOWN_DAY_SUBLABELS = {
+    "AQUECIMENTO",
+    "ABDÔMEN",
+    "ABDOMEN",
+    "CARDIO",
+    "ATIVAÇÃO",
+    "ATIVACAO",
+    "TREINO",
+}
+BARE_OBSERVATIONS = {"OBSERVAÇÕES", "OBSERVACOES"}
 KNOWN_FINAL_SECTIONS = {
     "CARDIO SEMANAL",
     "OBSERVAÇÕES IMPORTANTES",
     "OBSERVACOES IMPORTANTES",
-    "OBSERVAÇÕES",
-    "OBSERVACOES",
-}
+} | BARE_OBSERVATIONS
 
 
 def is_all_caps_header(line: str) -> bool:
@@ -104,6 +138,55 @@ def _final_section_key(line: str) -> str | None:
     return normalized if normalized in KNOWN_FINAL_SECTIONS else None
 
 
+def _clean_line(line: str) -> str:
+    return BULLET_PREFIX_RE.sub("", strip_bold(line))
+
+
+def _is_day_sublabel(head: str) -> bool:
+    """Sub-seção do dia, simples ("Aquecimento") ou composta
+    ("AQUECIMENTO / ATIVAÇÃO")."""
+    parts = re.split(r"\s*[/+]\s*", head.strip().upper())
+    return all(p in KNOWN_DAY_SUBLABELS for p in parts)
+
+
+def _is_exercise_line(clean: str) -> bool:
+    return bool(EXERCISE_SERIES_RE.match(clean) or EXERCISE_COMPACT_RE.match(clean))
+
+
+def _is_bare_observations(clean: str) -> bool:
+    return _strip_trailing_decoration(clean).upper() in BARE_OBSERVATIONS
+
+
+def _uses_per_day_observations(lines: list[str]) -> bool:
+    """Formato em que cada dia tem seu próprio "OBSERVAÇÕES" (plano da
+    Beatriz), em vez de um único bloco de observações no fim: depois de um
+    "OBSERVAÇÕES" dentro dos dias ainda aparece outro dia com exercícios."""
+    stage = 0  # 0: antes dos dias, 1: nos dias, 2: após OBSERVAÇÕES, 3: dia após OBSERVAÇÕES
+    for raw in lines:
+        clean = _clean_line(raw.strip())
+        if not clean:
+            continue
+        if stage in (0, 2) and match_day_header(clean):
+            stage += 1
+        elif stage == 1 and _is_bare_observations(clean):
+            stage = 2
+        elif stage == 3 and _is_exercise_line(clean):
+            return True
+    return False
+
+
+def _block_has_exercises(lines: list[str], start: int) -> bool:
+    """Diz se o bloco que começa em `start` (até o próximo separador "⸻")
+    tem alguma linha de exercício."""
+    for raw in lines[start + 1 :]:
+        line = raw.strip()
+        if SEPARATOR_RE.match(line):
+            return False
+        if _is_exercise_line(_clean_line(line)):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Modelo de dados
 # ---------------------------------------------------------------------------
@@ -116,8 +199,29 @@ class Field:
 
 
 @dataclass
+class FreeGroup:
+    subtitle: str = ""
+    lines: list[str] = field(default_factory=list)
+
+
+@dataclass
+class FreeSection:
+    """Bloco de texto livre com título (ex.: "FOCO DO TREINAMENTO",
+    "CARDIO", "DESCANSO ENTRE AS SÉRIES"), opcionalmente dividido por
+    subtítulos (ex.: "SEGUNDA A SEXTA", "SÁBADO")."""
+
+    title: str
+    groups: list[FreeGroup] = field(default_factory=list)
+
+    def add_line(self, line: str) -> None:
+        if not self.groups:
+            self.groups.append(FreeGroup())
+        self.groups[-1].lines.append(line)
+
+
+@dataclass
 class DayItem:
-    kind: str  # "label" | "exercise" | "text"
+    kind: str  # "label" | "exercise" | "text" | "bullet"
     label: str = ""
     name: str = ""
     series_count: int | None = None
@@ -139,11 +243,13 @@ class WorkoutPlan:
     client_fields: list[Field] = field(default_factory=list)
     plan_title: str = ""
     plan_fields: list[Field] = field(default_factory=list)
+    plan_sections: list[FreeSection] = field(default_factory=list)
     days: list[WorkoutDay] = field(default_factory=list)
     weekly_summary_title: str = ""
     weekly_summary_lines: list[str] = field(default_factory=list)
     observations_title: str = ""
     observations_lines: list[str] = field(default_factory=list)
+    extra_sections: list[FreeSection] = field(default_factory=list)
     unparsed_warnings: list[str] = field(default_factory=list)
 
 
@@ -160,6 +266,11 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
     current_day: WorkoutDay | None = None
     current_final_lines: list[str] | None = None
     pending_exercise: DayItem | None = None
+    per_day_observations = _uses_per_day_observations(lines)
+    after_separator = False
+    current_plan_section: FreeSection | None = None
+    current_free_section: FreeSection | None = None
+    in_day_observations = False
 
     def close_pending_exercise() -> None:
         nonlocal pending_exercise
@@ -170,16 +281,34 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
         suffix = "-feira" if day_match.group(2) else ""
         return WorkoutDay(day_name=day_word + suffix, focus=day_match.group(3).strip())
 
-    for raw_line in lines:
+    for idx, raw_line in enumerate(lines):
         line = raw_line.strip()
 
         if not line or SEPARATOR_RE.match(line):
             # Linha em branco/separador: encerra a coleta de reps do
             # exercício atual (mas não muda de fase).
             close_pending_exercise()
+            if line:
+                after_separator = True
             continue
 
-        clean = BULLET_PREFIX_RE.sub("", strip_bold(line))
+        block_start = after_separator
+        after_separator = False
+        clean = _clean_line(line)
+
+        # Formato com "OBSERVAÇÕES" em cada dia: vira sub-seção do dia atual
+        # em vez de seção final do documento.
+        if (
+            phase == "days"
+            and per_day_observations
+            and not block_start
+            and current_day is not None
+            and _is_bare_observations(clean)
+        ):
+            close_pending_exercise()
+            current_day.items.append(DayItem(kind="label", label=clean))
+            in_day_observations = True
+            continue
 
         # Detecção de seção final, válida assim que estivermos dentro dos
         # dias de treino (também cobre a troca entre "CARDIO SEMANAL" e
@@ -189,6 +318,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             if final_key:
                 close_pending_exercise()
                 phase = "final"
+                current_free_section = None
                 if "CARDIO" in final_key:
                     plan.weekly_summary_title = clean
                     current_final_lines = plan.weekly_summary_lines
@@ -197,7 +327,29 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                     current_final_lines = plan.observations_lines
                 continue
 
+        # Bloco informativo depois dos dias (ex.: "⸻ / CARDIO" com a rotina
+        # da semana, "⸻ / DESCANSO ENTRE AS SÉRIES"): título em caixa alta
+        # logo após um separador, num bloco sem nenhum exercício.
+        if (
+            phase in ("days", "final")
+            and block_start
+            and is_all_caps_header(clean)
+            and not match_day_header(clean)
+            and not _block_has_exercises(lines, idx)
+        ):
+            close_pending_exercise()
+            phase = "final"
+            current_free_section = FreeSection(title=_strip_trailing_decoration(clean))
+            plan.extra_sections.append(current_free_section)
+            continue
+
         if phase == "final":
+            if current_free_section is not None:
+                if is_all_caps_header(clean):
+                    current_free_section.groups.append(FreeGroup(subtitle=clean))
+                else:
+                    current_free_section.add_line(clean)
+                continue
             if current_final_lines is None:
                 current_final_lines = plan.observations_lines
             current_final_lines.append(clean)
@@ -240,6 +392,15 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                     Field(label=label_match.group(1).strip(), value=label_match.group(2).strip())
                 )
                 continue
+            # Bloco extra no cabeçalho (ex.: "FOCO DO TREINAMENTO" seguido
+            # de uma lista): título em caixa alta + as linhas seguintes.
+            if is_all_caps_header(clean):
+                current_plan_section = FreeSection(title=_strip_trailing_decoration(clean))
+                plan.plan_sections.append(current_plan_section)
+                continue
+            if current_plan_section is not None:
+                current_plan_section.add_line(clean)
+                continue
             plan.unparsed_warnings.append(
                 f"Linha não reconhecida no bloco de informações do plano: \"{clean[:60]}\""
             )
@@ -249,6 +410,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
         day_match = match_day_header(clean)
         if day_match:
             close_pending_exercise()
+            in_day_observations = False
             current_day = make_day(day_match)
             plan.days.append(current_day)
             continue
@@ -264,11 +426,16 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
         else:
             head_part, remainder = clean, ""
 
-        if head_part.strip().upper() in KNOWN_DAY_SUBLABELS:
+        if _is_day_sublabel(head_part):
             close_pending_exercise()
+            in_day_observations = False
             current_day.items.append(DayItem(kind="label", label=head_part.strip()))
             if remainder.strip():
                 current_day.items.append(DayItem(kind="text", text=remainder.strip()))
+            continue
+
+        if in_day_observations:
+            current_day.items.append(DayItem(kind="bullet", text=clean))
             continue
 
         series_match = EXERCISE_SERIES_RE.match(clean)

@@ -81,6 +81,21 @@ body {
   margin: 4px 0;
 }
 
+/* Blocos extras do cabeçalho (ex.: "FOCO DO TREINAMENTO") */
+.plan-section-title {
+  font-weight: bold;
+  margin: 10px 0 4px;
+}
+
+.plan-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.plan-section li {
+  margin-bottom: 2px;
+}
+
 .warning-box {
   background: #fff8e1;
   border: 1px solid #f0c14b;
@@ -122,6 +137,21 @@ body {
   font-size: 9.5pt;
   color: #444;
   margin: 2px 0;
+}
+
+/* Observações do dia (lista com marcador) */
+.item-bullet {
+  font-size: 9.5pt;
+  color: #333;
+  margin: 2px 0;
+  padding-left: 14px;
+  position: relative;
+}
+
+.item-bullet::before {
+  content: "•";
+  position: absolute;
+  left: 3px;
 }
 
 .exercise {
