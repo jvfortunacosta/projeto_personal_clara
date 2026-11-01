@@ -63,6 +63,11 @@ Segundo formato real ("BEATRIZ MOREIRA"), com blocos separados por "⸻":
   ⸻
   DESCANSO ENTRE AS SÉRIES
   * ...
+
+Terceiro formato real ("AMANDA OLIVEIRA"): igual ao anterior, mas os
+exercícios principais vêm em duas linhas (nome / "4x8–10 cada perna") e os
+blocos finais usam subtítulos curtos sem caixa alta ("Progressão de carga",
+"Intensidade"), cada um seguido das suas linhas de texto.
 """
 
 from __future__ import annotations
@@ -87,11 +92,13 @@ DAY_HEADER_TITLECASE_RE = re.compile(
 )
 EXERCISE_SERIES_RE = re.compile(r"^(.+?)\s*[-–—]\s*(\d+)\s*s[ée]ries?\s*$", re.IGNORECASE)
 # Repetições: número, faixa ("10-12") e/ou sequência por série ("12/12/10/10").
+_REPS = r"\d+(?:\s*[-–—]\s*\d+)?(?:\s*/\s*\d+(?:\s*[-–—]\s*\d+)?)*"
 EXERCISE_COMPACT_RE = re.compile(
-    r"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*"
-    r"(\d+(?:\s*[-–—]\s*\d+)?(?:\s*/\s*\d+(?:\s*[-–—]\s*\d+)?)*)\s*(.*)$",
-    re.IGNORECASE,
+    rf"^(.+?)\s*[-–—]\s*(\d+)\s*[x×]\s*({_REPS})\s*(.*)$", re.IGNORECASE
 )
+# Linha só com séries x repetições ("4x10–12 cada perna"), logo abaixo da
+# linha com o nome do exercício.
+SETS_REPS_LINE_RE = re.compile(rf"^(\d+)\s*[x×]\s*({_REPS})\s*(.*)$", re.IGNORECASE)
 REPS_BULLET_LINE_RE = re.compile(r"^\d+(\s*[•·]\s*\d+)+$")
 
 
@@ -173,6 +180,33 @@ def _uses_per_day_observations(lines: list[str]) -> bool:
         elif stage == 3 and _is_exercise_line(clean):
             return True
     return False
+
+
+def _sets_reps_text(sets: str, reps: str, trailer: str) -> str:
+    return f"{sets}x{reps}" + (f" {trailer}" if trailer else "")
+
+
+def _is_short_title(clean: str) -> bool:
+    """Linha curta com cara de título ("Progressão de carga", "Intensidade"):
+    até 4 palavras, começa com maiúscula, sem ":" e sem pontuação final."""
+    return (
+        len(clean.split()) <= 4
+        and clean[:1].isupper()
+        and ":" not in clean
+        and not re.search(r"[.;!?]$", clean)
+    )
+
+
+def _next_block_line(lines: list[str], start: int) -> str | None:
+    """Próxima linha com conteúdo depois de `start`, dentro do mesmo bloco
+    (None se vier antes um separador "⸻" ou o fim do texto)."""
+    for raw in lines[start + 1 :]:
+        line = raw.strip()
+        if SEPARATOR_RE.match(line):
+            return None
+        if line:
+            return _clean_line(line)
+    return None
 
 
 def _block_has_exercises(lines: list[str], start: int) -> bool:
@@ -271,10 +305,14 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
     current_plan_section: FreeSection | None = None
     current_free_section: FreeSection | None = None
     in_day_observations = False
+    # Linha solta que pode ser o nome de um exercício cujas séries vêm na
+    # linha de baixo ("Stiff com barra" / "4x8–10").
+    exercise_name_item: DayItem | None = None
 
     def close_pending_exercise() -> None:
-        nonlocal pending_exercise
+        nonlocal pending_exercise, exercise_name_item
         pending_exercise = None
+        exercise_name_item = None
 
     def make_day(day_match: re.Match) -> WorkoutDay:
         day_word = day_match.group(1).capitalize()
@@ -345,7 +383,14 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
 
         if phase == "final":
             if current_free_section is not None:
-                if is_all_caps_header(clean):
+                # Subtítulo: caixa alta ("SÁBADO") ou título curto seguido de
+                # uma linha de conteúdo ("Intensidade" / "As últimas...").
+                next_line = _next_block_line(lines, idx)
+                if is_all_caps_header(clean) or (
+                    _is_short_title(clean)
+                    and next_line is not None
+                    and not _is_short_title(next_line)
+                ):
                     current_free_section.groups.append(FreeGroup(subtitle=clean))
                 else:
                     current_free_section.add_line(clean)
@@ -457,15 +502,33 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                 compact_match.group(3),
                 compact_match.group(4).strip(),
             )
-            text = f"{sets_str}x{reps_str}" + (f" {trailer}" if trailer else "")
             current_day.items.append(
                 DayItem(
                     kind="exercise",
                     name=compact_match.group(1).strip(),
                     series_count=int(sets_str),
-                    reps=[text],
+                    reps=[_sets_reps_text(sets_str, reps_str, trailer)],
                 )
             )
+            continue
+
+        # Exercício em duas linhas: a linha solta anterior era o nome e esta
+        # traz as séries ("Stiff com barra" / "4x8–10").
+        sets_reps_match = SETS_REPS_LINE_RE.match(clean)
+        if exercise_name_item is not None and sets_reps_match:
+            sets_str, reps_str, trailer = (
+                sets_reps_match.group(1),
+                sets_reps_match.group(2),
+                sets_reps_match.group(3).strip(),
+            )
+            exercise_name_item.kind = "exercise"
+            exercise_name_item.name = exercise_name_item.text
+            exercise_name_item.text = ""
+            exercise_name_item.series_count = int(sets_str)
+            exercise_name_item.reps = [_sets_reps_text(sets_str, reps_str, trailer)]
+            close_pending_exercise()
+            # Linha logo abaixo (sem linha em branco) vira dica do exercício.
+            pending_exercise = exercise_name_item
             continue
 
         if pending_exercise is not None:
@@ -486,6 +549,7 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
 
         # Linha solta dentro do dia, fora de qualquer exercício em coleta
         # (ex.: "Mini Band", "Esteira", "Inclinação: 10-12%").
-        current_day.items.append(DayItem(kind="text", text=clean))
+        exercise_name_item = DayItem(kind="text", text=clean)
+        current_day.items.append(exercise_name_item)
 
     return plan
