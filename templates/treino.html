@@ -72,7 +72,7 @@
         <div class="exercise">
           <div class="exercise-name">
             {{ item.name }}
-            {% if item.series_count %}<span class="series-badge">{{ item.series_count }} séries</span>{% endif %}
+            {% if item.series_count %}<span class="series-badge">{{ item.series_count }} série{% if item.series_count != 1 %}s{% endif %}</span>{% endif %}
           </div>
           {% if item.reps %}
           <div class="exercise-reps">{{ item.reps | join(" &middot; ") | safe }}</div>

@@ -92,6 +92,11 @@ E um terceiro (plano "AMANDA OLIVEIRA"): exercícios em duas linhas (nome
 numa linha, `4x8–10 cada perna` na de baixo) e subtítulos curtos sem caixa
 alta nos blocos finais ("Progressão de carga", "Intensidade").
 
+E um quarto (plano "STEPHANIE CRUZ"): bloco "DIVISÃO SEMANAL" no
+cabeçalho, grupo muscular na linha abaixo do dia, linha em branco entre o
+nome do exercício e as séries, dicas em lista abaixo das séries e
+subtítulos terminados em ":" ("Passos:").
+
 Em ambos os parsers, textos que não se encaixarem nos padrões esperados
 aparecem sinalizados no próprio PDF (caixa de aviso amarela) em vez de
 serem descartados silenciosamente.

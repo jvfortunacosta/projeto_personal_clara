@@ -68,6 +68,13 @@ Terceiro formato real ("AMANDA OLIVEIRA"): igual ao anterior, mas os
 exercícios principais vêm em duas linhas (nome / "4x8–10 cada perna") e os
 blocos finais usam subtítulos curtos sem caixa alta ("Progressão de carga",
 "Intensidade"), cada um seguido das suas linhas de texto.
+
+Quarto formato real ("STEPHANIE CRUZ"): bloco "DIVISÃO SEMANAL" no
+cabeçalho com linhas "SEGUNDA: ...", dia sozinho na linha ("SEGUNDA-FEIRA")
+com o grupo muscular na linha de baixo, exercício numerado com linha em
+branco antes das séries e as dicas em lista logo abaixo delas
+("1. Hip Thrust" / "" / "* 3x8–10" / "* Descanso: ..."), "OBSERVAÇÕES"
+entre blocos finais e subtítulos terminados em ":" ("Passos:").
 """
 
 from __future__ import annotations
@@ -325,9 +332,13 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
         if not line or SEPARATOR_RE.match(line):
             # Linha em branco/separador: encerra a coleta de reps do
             # exercício atual (mas não muda de fase).
-            close_pending_exercise()
             if line:
+                close_pending_exercise()
                 after_separator = True
+            else:
+                # Linha em branco preserva o possível nome de exercício: as
+                # séries podem vir depois dela ("1. Hip Thrust" / "" / "3x8–10").
+                pending_exercise = None
             continue
 
         block_start = after_separator
@@ -356,6 +367,12 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
             if final_key:
                 close_pending_exercise()
                 phase = "final"
+                if plan.extra_sections:
+                    # Documento que já usa blocos livres: "OBSERVAÇÕES" etc.
+                    # viram mais um bloco, na mesma ordem do texto.
+                    current_free_section = FreeSection(title=_strip_trailing_decoration(clean))
+                    plan.extra_sections.append(current_free_section)
+                    continue
                 current_free_section = None
                 if "CARDIO" in final_key:
                     plan.weekly_summary_title = clean
@@ -383,10 +400,13 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
 
         if phase == "final":
             if current_free_section is not None:
-                # Subtítulo: caixa alta ("SÁBADO") ou título curto seguido de
-                # uma linha de conteúdo ("Intensidade" / "As últimas...").
+                # Subtítulo: caixa alta ("SÁBADO"), rótulo curto sem valor
+                # ("Passos:") ou título curto seguido de uma linha de conteúdo
+                # ("Intensidade" / "As últimas...").
                 next_line = _next_block_line(lines, idx)
-                if is_all_caps_header(clean) or (
+                if clean.endswith(":") and _is_short_title(clean[:-1]):
+                    current_free_section.groups.append(FreeGroup(subtitle=clean[:-1].strip()))
+                elif is_all_caps_header(clean) or (
                     _is_short_title(clean)
                     and next_line is not None
                     and not _is_short_title(next_line)
@@ -431,8 +451,10 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                 plan.days.append(current_day)
                 phase = "days"
                 continue
+            # Depois de um bloco extra ("DIVISÃO SEMANAL"), linhas "Rótulo:
+            # valor" ("SEGUNDA: Glúteos...") pertencem ao bloco, não aos campos.
             label_match = LABEL_VALUE_RE.match(clean)
-            if label_match:
+            if label_match and current_plan_section is None:
                 plan.plan_fields.append(
                     Field(label=label_match.group(1).strip(), value=label_match.group(2).strip())
                 )
@@ -479,6 +501,17 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                 current_day.items.append(DayItem(kind="text", text=remainder.strip()))
             continue
 
+        # Dia com o grupo muscular na linha de baixo ("SEGUNDA-FEIRA" /
+        # "GLÚTEOS + POSTERIORES").
+        if (
+            not current_day.focus
+            and not current_day.items
+            and is_all_caps_header(clean)
+            and not _is_exercise_line(clean)
+        ):
+            current_day.focus = clean
+            continue
+
         if in_day_observations:
             current_day.items.append(DayItem(kind="bullet", text=clean))
             continue
@@ -521,14 +554,15 @@ def parse_workout(raw_text: str) -> WorkoutPlan:
                 sets_reps_match.group(2),
                 sets_reps_match.group(3).strip(),
             )
-            exercise_name_item.kind = "exercise"
-            exercise_name_item.name = exercise_name_item.text
-            exercise_name_item.text = ""
-            exercise_name_item.series_count = int(sets_str)
-            exercise_name_item.reps = [_sets_reps_text(sets_str, reps_str, trailer)]
+            item = exercise_name_item
+            item.kind = "exercise"
+            item.name = item.text
+            item.text = ""
+            item.series_count = int(sets_str)
+            item.reps = [_sets_reps_text(sets_str, reps_str, trailer)]
             close_pending_exercise()
-            # Linha logo abaixo (sem linha em branco) vira dica do exercício.
-            pending_exercise = exercise_name_item
+            # Linhas logo abaixo (sem linha em branco) viram dica do exercício.
+            pending_exercise = item
             continue
 
         if pending_exercise is not None:
