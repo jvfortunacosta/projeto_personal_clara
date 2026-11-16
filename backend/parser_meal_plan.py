@@ -23,7 +23,12 @@ Suposições assumidas sobre o formato de entrada (a confirmar com exemplos reai
   **texto**); são removidas ao interpretar rótulos, mas preservadas no
   texto literal dos itens (não removemos negrito no meio de uma frase).
 - Seções finais (CARDIO, PASSOS, REFEIÇÃO LIVRE, ORIENTAÇÕES, ...) não têm
-  "REFEIÇÃO" dentro e são tratadas como listas de texto livre.
+  "REFEIÇÃO" dentro e são tratadas como listas de texto livre. Dentro delas,
+  linhas em caixa alta ("PROTEÍNAS") ou numeradas e curtas ("1. Hidratação")
+  seguidas de conteúdo viram subtítulos, e linhas com tabulação (tabela
+  copiada, ex.: "Segunda-feira<TAB>Moderate Carb") viram uma tabela.
+- No preâmbulo, depois do subtítulo, outra linha em caixa alta (ex.:
+  "ESTRATÉGIA NUTRICIONAL") abre um bloco com as linhas seguintes.
 
 Essas suposições estão isoladas em constantes/regex no topo do arquivo para
 facilitar ajuste assim que tivermos um exemplo real colado pela personal.
@@ -54,6 +59,10 @@ BULLET_PREFIX_RE = re.compile(r"^[-•*]\s+")
 GENERIC_LABEL_RE = re.compile(r"^(.+):\s*$")
 # "Label: valor" no preâmbulo do plano (ex.: "Objetivo: reduzir gordura...").
 LABEL_VALUE_RE = re.compile(r"^([A-Za-zÀ-ú][\w À-ú]{1,30}):\s*(.+)$")
+# Título numerado dentro de uma seção livre ("1. Organização das refeições").
+NUMBERED_HEADING_RE = re.compile(r"^\d+\.\s+\S")
+# Células de uma linha de tabela copiada ("Segunda-feira<TAB>Moderate Carb").
+TABLE_CELL_SEP_RE = re.compile(r"\t+")
 
 # Palavras genéricas de "título de documento" (não nome de pessoa), usadas
 # para decidir qual dos dois lados de "X — Y" na primeira linha é o nome do
@@ -150,9 +159,18 @@ class Category:
 
 
 @dataclass
+class FreeGroup:
+    subtitle: str = ""  # ex.: "PROTEÍNAS", "1. Organização das refeições"
+    rows: list[list[str]] = field(default_factory=list)  # tabela, se houver
+    lines: list[str] = field(default_factory=list)
+
+
+@dataclass
 class FreeSection:
     name: str
     lines: list[str] = field(default_factory=list)
+    # Mesmo conteúdo de `lines`, organizado em subtítulos e tabelas.
+    groups: list[FreeGroup] = field(default_factory=list)
 
 
 @dataclass
@@ -163,6 +181,8 @@ class MealPlan:
     subtitle: str = ""  # ex.: "CARB CYCLING"
     intro_fields: list[Field] = field(default_factory=list)  # ex.: "Objetivo: ..."
     intro_lines: list[str] = field(default_factory=list)
+    # Blocos do preâmbulo com título próprio (ex.: "ESTRATÉGIA NUTRICIONAL").
+    intro_sections: list[FreeSection] = field(default_factory=list)
     categories: list[Category] = field(default_factory=list)
     free_sections: list[FreeSection] = field(default_factory=list)
     unparsed_warnings: list[str] = field(default_factory=list)
@@ -198,15 +218,17 @@ def _split_sections(lines: list[str]) -> tuple[list[str], list[list[str]]]:
 
 def _parse_preamble(
     preamble_lines: list[str],
-) -> tuple[str, str, str, str, list[Field], list[str]]:
+) -> tuple[str, str, str, str, list[Field], list[str], list[FreeSection]]:
     """
     Interpreta as linhas antes do primeiro separador: título/nome do
     cliente (1ª linha), e opcionalmente um subtítulo em caixa alta (ex.:
-    "CARB CYCLING") e/ou linhas "Label: valor" (ex.: "Objetivo: ...").
+    "CARB CYCLING") e/ou linhas "Label: valor" (ex.: "Objetivo: ..."). Depois
+    do subtítulo, outra linha em caixa alta abre um bloco com título próprio
+    (ex.: "ESTRATÉGIA NUTRICIONAL"), que fica com as linhas seguintes.
     """
     text_lines = [l.strip() for l in preamble_lines if l.strip()]
     if not text_lines:
-        return "", "", "", "", [], []
+        return "", "", "", "", [], [], []
 
     raw_title = strip_bold(text_lines[0])
     client_name, phase = raw_title, ""
@@ -227,8 +249,15 @@ def _parse_preamble(
     subtitle = ""
     intro_fields: list[Field] = []
     intro_lines: list[str] = []
+    intro_section_lines: list[tuple[str, list[str]]] = []
     for raw_line in text_lines[1:]:
         line = strip_bold(raw_line)
+        if subtitle and is_all_caps_header(line) and not LABEL_VALUE_RE.match(line):
+            intro_section_lines.append((line, []))
+            continue
+        if intro_section_lines:
+            intro_section_lines[-1][1].append(raw_line)
+            continue
         label_match = LABEL_VALUE_RE.match(line)
         if label_match:
             intro_fields.append(
@@ -239,7 +268,8 @@ def _parse_preamble(
         else:
             intro_lines.append(line)
 
-    return raw_title, client_name, phase, subtitle, intro_fields, intro_lines
+    intro_sections = [_parse_free_section(name, lines) for name, lines in intro_section_lines]
+    return raw_title, client_name, phase, subtitle, intro_fields, intro_lines, intro_sections
 
 
 def _parse_meal_block(meal_lines: list[str]) -> list[MealVariant]:
@@ -377,17 +407,63 @@ def _parse_category_section(name: str, lines: list[str]) -> Category:
     return category
 
 
+def _is_subtitle_candidate(text: str) -> bool:
+    """Linha com cara de título dentro de uma seção livre: caixa alta
+    ("PROTEÍNAS") ou numerada e curta, sem pontuação final ("1. Hidratação")."""
+    if "\t" in text:
+        return False
+    if is_all_caps_header(text):
+        return True
+    return (
+        bool(NUMBERED_HEADING_RE.match(text))
+        and len(text.split()) <= 6
+        and not re.search(r"[.:;!?]$", text)
+    )
+
+
+def _build_free_groups(entries: list[tuple[str, bool]]) -> list[FreeGroup]:
+    """Organiza as linhas (texto, tinha bullet?) de uma seção livre em
+    subtítulos e tabelas. Um título só vira subtítulo se tiver conteúdo logo
+    abaixo e não estiver numa sequência de títulos (ex.: lista "1. Beber
+    água" / "2. Dormir bem" continua sendo lista)."""
+
+    def is_candidate(entry: tuple[str, bool] | None) -> bool:
+        return entry is not None and not entry[1] and _is_subtitle_candidate(entry[0])
+
+    groups: list[FreeGroup] = []
+    for i, (text, bulleted) in enumerate(entries):
+        prev = entries[i - 1] if i > 0 else None
+        nxt = entries[i + 1] if i + 1 < len(entries) else None
+        if is_candidate((text, bulleted)) and nxt and not is_candidate(nxt) and not is_candidate(prev):
+            groups.append(FreeGroup(subtitle=text))
+            continue
+        if not groups:
+            groups.append(FreeGroup())
+        if not bulleted and "\t" in text:
+            # Tabela copiada: começa um grupo novo se já houver texto antes,
+            # para a tabela não ser desenhada acima dele.
+            if groups[-1].lines:
+                groups.append(FreeGroup())
+            groups[-1].rows.append([c.strip() for c in TABLE_CELL_SEP_RE.split(text) if c.strip()])
+            continue
+        groups[-1].lines.append(text)
+    return groups
+
+
 def _parse_free_section(name: str, lines: list[str]) -> FreeSection:
     items: list[str] = []
+    entries: list[tuple[str, bool]] = []
     for raw_line in lines:
         line = raw_line.strip()
         if not line:
             continue
         if BULLET_PREFIX_RE.match(line):
             items.append(strip_bold(BULLET_PREFIX_RE.sub("", line)))
+            entries.append((items[-1], True))
         else:
             items.append(strip_bold(line))
-    return FreeSection(name=name, lines=items)
+            entries.append((items[-1], False))
+    return FreeSection(name=name, lines=items, groups=_build_free_groups(entries))
 
 
 def _build_single_meal(header_line: str, body_lines: list[str]) -> Meal:
@@ -421,9 +497,15 @@ def parse_meal_plan(raw_text: str) -> MealPlan:
     lines = [l.rstrip() for l in raw_text.replace("\r\n", "\n").split("\n")]
 
     preamble, section_blocks = _split_sections(lines)
-    raw_title, client_name, phase, subtitle, intro_fields, intro_lines = _parse_preamble(
-        preamble
-    )
+    (
+        raw_title,
+        client_name,
+        phase,
+        subtitle,
+        intro_fields,
+        intro_lines,
+        intro_sections,
+    ) = _parse_preamble(preamble)
 
     plan = MealPlan(
         raw_title=raw_title,
@@ -432,6 +514,7 @@ def parse_meal_plan(raw_text: str) -> MealPlan:
         subtitle=subtitle,
         intro_fields=intro_fields,
         intro_lines=intro_lines,
+        intro_sections=intro_sections,
     )
     current_category: Category | None = None
 

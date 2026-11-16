@@ -58,7 +58,10 @@ uma heurística (`backend/doc_detect.py`) para decidir automaticamente qual
 parser/template aplicar — baseada em palavras-chave como "REFEIÇÃO"/
 "escolher 1" (plano alimentar) vs. dias da semana/"séries"/"repetições"
 (treino). Há um seletor na interface para forçar um dos dois tipos caso a
-detecção erre.
+detecção erre. Um texto com refeições numeradas ("REFEIÇÃO 1 — ...") e sem
+nenhum sinal forte de treino (séries, repetições, aquecimento, "3x12") é
+sempre plano alimentar, mesmo citando dias da semana (ex.: tabela de
+organização semanal do carb cycling).
 
 ## Estado dos parsers
 

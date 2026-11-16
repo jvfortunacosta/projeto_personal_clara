@@ -81,6 +81,21 @@ body {
   margin: 4px 0;
 }
 
+/* Blocos do cabeçalho com título próprio (ex.: "ESTRATÉGIA NUTRICIONAL") */
+.intro-section-title {
+  font-weight: bold;
+  margin: 10px 0 4px;
+}
+
+.intro-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.intro-section li {
+  margin-bottom: 2px;
+}
+
 .category-description {
   font-size: 9pt;
   color: #555;
@@ -186,6 +201,32 @@ body {
 .free-section ul {
   margin: 0;
   padding-left: 22px;
+}
+
+/* Subtítulos e tabelas dentro das seções livres */
+.free-subtitle {
+  font-weight: bold;
+  font-size: 9.5pt;
+  color: #b5651d;
+  text-transform: uppercase;
+  margin: 10px 0 4px;
+}
+
+.free-table {
+  border-collapse: collapse;
+  margin: 4px 0 8px;
+  font-size: 9.5pt;
+}
+
+.free-table th,
+.free-table td {
+  border: 1px solid #e0e0e0;
+  padding: 4px 12px;
+  text-align: left;
+}
+
+.free-table th {
+  background: #f2f2f2;
 }
 
 /* Rodapé */

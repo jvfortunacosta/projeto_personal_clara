@@ -16,6 +16,10 @@ WEEKDAY_RE = re.compile(
 )
 MEAL_KEYWORDS = ("REFEIÇÃO", "REFEICAO", "ESCOLHER 1", "ESCOLHER 2", "CARB CYCLING")
 WORKOUT_KEYWORDS = ("SÉRIES", "SERIES", "REPETIÇÕES", "REPETICOES", "AQUECIMENTO")
+# Linha "REFEIÇÃO 1 — ..." (cabeçalho de refeição numerada).
+MEAL_HEADER_LINE_RE = re.compile(r"^\W*REFEI[ÇC][ÃA]O\s*\d", re.IGNORECASE | re.MULTILINE)
+# Séries x repetições ("3x12", "4x8–10").
+SETS_REPS_RE = re.compile(r"\b\d+\s*[x×]\s*\d+", re.IGNORECASE)
 
 
 def detect_doc_type(text: str) -> str:
@@ -31,6 +35,14 @@ def detect_doc_type(text: str) -> str:
     if has_meal_markers and not has_workout_markers:
         return "meal_plan"
     if has_workout_markers and has_meal_markers:
+        # Refeições numeradas sem nenhum sinal forte de treino (séries,
+        # repetições, aquecimento, "3x12") é plano alimentar, mesmo citando
+        # dias da semana (ex.: tabela "Segunda-feira | Moderate Carb").
+        has_strong_workout_markers = any(k in upper for k in WORKOUT_KEYWORDS) or bool(
+            SETS_REPS_RE.search(upper)
+        )
+        if MEAL_HEADER_LINE_RE.search(text) and not has_strong_workout_markers:
+            return "meal_plan"
         # Ambíguo: dias da semana costumam ser um sinal mais forte de treino.
         return "workout" if WEEKDAY_RE.search(upper) else "meal_plan"
     return "meal_plan"
